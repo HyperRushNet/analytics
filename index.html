@@ -4,50 +4,64 @@
 <meta charset="utf-8">
 <title>rCount Dashboard</title>
 <style>
-body { font-family: sans-serif; padding: 20px; background: #0f1724; color: #e6eef8; }
-button { padding: 10px 15px; font-size: 16px; cursor: pointer; margin-right: 10px; border-radius: 6px; border: none; background: #60a5fa; color: #04263b; }
-.status { margin-top: 10px; font-size: 14px; }
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 50px;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+  #status {
+    margin-top: 20px;
+    font-size: 1rem;
+    color: green;
+  }
 </style>
 </head>
 <body>
-<h1>rCount Visitor Tracker</h1>
+<h1>rCount Dashboard</h1>
 <button id="btnAdd">Add visit</button>
-<div class="status" id="status">Status: ready</div>
+<div id="status"></div>
 
 <script>
 const API_BASE = "https://rcount.onrender.com";
-const statusEl = document.getElementById('status');
 
 // Service Worker registreren
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/analytics/sw.js')
-    .then(() => console.log('SW registered'));
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => console.log("SW geregistreerd"))
+    .catch(e => console.error("SW registratie mislukt:", e));
 }
 
-// Functie om visit toe te voegen
+// Functie om request te versturen via beacon en SW
 function addVisit() {
   const url = API_BASE + '/add';
   const payload = JSON.stringify({ time: Date.now() });
 
-  // 1️⃣ Beacon proberen
+  // Beacon sturen
   if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: 'application/json' });
+    const blob = new Blob([payload], { type: 'text/plain' }); // text/plain voorkomt preflight
     const sent = navigator.sendBeacon(url, blob);
     if (sent) {
-      statusEl.textContent = 'Visit sent via beacon ✅';
+      document.getElementById('status').textContent = "Beacon succesvol verzonden!";
       return;
     }
   }
 
-  // 2️⃣ SW fallback
+  // Fallback naar SW retry
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
       type: 'storeFailed',
       request: { url, body: payload }
     });
-    statusEl.textContent = 'No network, visit stored offline ⚡';
+    document.getElementById('status').textContent = "Verzoek opgeslagen voor retry via SW";
   } else {
-    statusEl.textContent = 'SW not available, could not store visit ❌';
+    document.getElementById('status').textContent = "Geen SW actief, probeer opnieuw!";
   }
 }
 
