@@ -12,7 +12,9 @@ const API_BASE = "https://rcount.onrender.com";
 
 // Service Worker registreren
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/analytics/sw.js');
+  navigator.serviceWorker.register('/analytics/sw.js').then(() => {
+    console.log('SW registered');
+  });
 }
 
 // Functie om request te versturen via beacon en SW
@@ -36,6 +38,16 @@ function addVisit() {
       type: 'storeFailed',
       request: { url, body: payload }
     });
+  } else {
+    // fallback fetch met CORS
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      mode: 'cors',
+      credentials: 'omit'
+    }).then(r => console.log('Fallback fetch sent', r.status))
+      .catch(err => console.error('Fallback fetch failed', err));
   }
 }
 
