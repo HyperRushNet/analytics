@@ -3,18 +3,39 @@
 <head>
 <meta charset="utf-8">
 <title>rCount Dashboard</title>
+<style>
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 50px;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+  #status {
+    margin-top: 20px;
+    font-size: 1rem;
+    color: green;
+  }
+</style>
 </head>
 <body>
+<h1>rCount Dashboard</h1>
 <button id="btnAdd">Add visit</button>
+<div id="status"></div>
 
 <script>
 const API_BASE = "https://rcount.onrender.com";
 
 // Service Worker registreren
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/analytics/sw.js').then(() => {
-    console.log('SW registered');
-  });
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => console.log("SW geregistreerd"))
+    .catch(e => console.error("SW registratie mislukt:", e));
 }
 
 // Functie om request te versturen via beacon en SW
@@ -22,32 +43,25 @@ function addVisit() {
   const url = API_BASE + '/add';
   const payload = JSON.stringify({ time: Date.now() });
 
-  // 1️⃣ Beacon sturen
+  // Beacon sturen
   if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: 'application/json' });
+    const blob = new Blob([payload], { type: 'text/plain' }); // text/plain voorkomt preflight
     const sent = navigator.sendBeacon(url, blob);
     if (sent) {
-      console.log('Beacon sent successfully');
+      document.getElementById('status').textContent = "Beacon succesvol verzonden!";
       return;
     }
   }
 
-  // 2️⃣ Als beacon faalt, message naar SW sturen voor retry
+  // Fallback naar SW retry
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
       type: 'storeFailed',
       request: { url, body: payload }
     });
+    document.getElementById('status').textContent = "Verzoek opgeslagen voor retry via SW";
   } else {
-    // fallback fetch met CORS
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: payload,
-      mode: 'cors',
-      credentials: 'omit'
-    }).then(r => console.log('Fallback fetch sent', r.status))
-      .catch(err => console.error('Fallback fetch failed', err));
+    document.getElementById('status').textContent = "Geen SW actief, probeer opnieuw!";
   }
 }
 
