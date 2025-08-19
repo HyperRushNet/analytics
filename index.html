@@ -1,154 +1,45 @@
 <!doctype html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>rCount Dashboard</title>
-  <style>
-    :root{
-      --bg:#0f1724;
-      --card:#0b1220;
-      --muted:#9aa7bf;
-      --accent:#60a5fa;
-      --good:#34d399;
-      --danger:#fb7185;
-      --glass: rgba(255,255,255,0.03);
-    }
-    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,system-ui,-apple-system,Helvetica,Arial;}
-    body{background:linear-gradient(180deg,#071024 0%, #071a2b 100%);color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:24px;}
-    .app{width:100%;max-width:920px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    h1{font-size:20px;margin:0}
-    .meta{color:var(--muted);font-size:13px}
-    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px}
-    .day{
-      background:var(--card);
-      padding:14px;
-      border-radius:12px;
-      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-      text-align:center;
-      min-height:96px;
-      display:flex;flex-direction:column;justify-content:center;gap:8px;
-    }
-    .day strong{font-size:20px;display:block}
-    .day .label{font-size:13px;color:var(--muted)}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-    button{background:var(--accent);color:#04263b;border:0;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600}
-    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
-    button.reset{background:var(--danger);color:#fff}
-    .row{display:flex;gap:12px;align-items:center}
-    .info{background:var(--glass);padding:10px;border-radius:10px;color:var(--muted);font-size:13px}
-    .status{font-weight:700}
-    .small{font-size:12px;color:var(--muted)}
-    footer{margin-top:12px;color:var(--muted);font-size:13px}
-    .loader{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.08);border-top-color:var(--accent);animation:spin 0.9s linear infinite;display:inline-block;vertical-align:middle}
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style>
+<meta charset="utf-8">
+<title>rCount Dashboard</title>
 </head>
 <body>
-  <div class="app" role="main">
-    <header>
-      <div>
-        <h1>rCount Dashboard</h1>
-        <div class="meta">Visitor counter — week view (Ma -> Zo) • API: <span id="apiUrl"></span></div>
-      </div>
-      <div class="row">
-        <div class="info">Status: <span id="status" class="status small">—</span></div>
-      </div>
-    </header>
+<button id="btnAdd">Add visit</button>
 
-    <section class="controls">
-      <button id="btnRefresh" class="ghost">Refresh now</button>
-      <button id="btnAdd" title="Add +1 to today's counter">Add visit (UTC today)</button>
-      <button id="btnReset" class="reset" title="Reset week to zeros">Reset week</button>
-      <button id="btnAuto" class="ghost">Auto-refresh: off</button>
-      <div style="margin-left:auto" class="small">Last updated: <span id="lastUpdated">—</span></div>
-    </section>
+<script>
+const API_BASE = "https://rcount.onrender.com";
 
-    <section class="grid" id="grid"></section>
+// Service Worker registreren
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/analytics/sw.js');
+}
 
-    <footer>
-      <div class="small">Endpoints: <code>/</code> (GET), <code>/add</code> (POST), <code>/reset</code> (POST), <code>/ping</code> (GET)</div>
-      <div class="small">All times are in <strong>UTC</strong>. Monday index = 0, Sunday index = 6.</div>
-    </footer>
-  </div>
+// Functie om request te versturen via beacon en SW
+function addVisit() {
+  const url = API_BASE + '/add';
+  const payload = JSON.stringify({ time: Date.now() });
 
-  <script>
-    const API_BASE = "https://rcount.onrender.com";
-    document.getElementById('apiUrl').textContent = API_BASE;
-
-    const labels = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
-    const grid = document.getElementById('grid');
-    const statusEl = document.getElementById('status');
-    const lastUpdatedEl = document.getElementById('lastUpdated');
-    let autoInterval=null;
-
-    for(let i=0;i<7;i++){
-      const day=document.createElement('div');
-      day.className='day';
-      day.id='day-'+i;
-      day.innerHTML=`<div class="label">${labels[i]}</div><strong id="val-${i}">—</strong><div class="small">index ${i}</div>`;
-      grid.appendChild(day);
+  // 1️⃣ Beacon sturen
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: 'application/json' });
+    const sent = navigator.sendBeacon(url, blob);
+    if (sent) {
+      console.log('Beacon sent successfully');
+      return;
     }
+  }
 
-    function setStatus(text, healthy=true){
-      statusEl.textContent=text;
-      statusEl.style.color=healthy?'var(--good)':'var(--danger)';
-    }
-    function setLoading(loading){
-      if(loading)setStatus('loading…', false);
-    }
-    function updateUI(arr){
-      if(!Array.isArray(arr)||arr.length!==7)return;
-      for(let i=0;i<7;i++){
-        document.getElementById('val-'+i).textContent=arr[i];
-      }
-      setStatus('online',true);
-      lastUpdatedEl.textContent=(new Date()).toISOString();
-    }
+  // 2️⃣ Als beacon faalt, message naar SW sturen voor retry
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'storeFailed',
+      request: { url, body: payload }
+    });
+  }
+}
 
-    async function apiGet(path){
-      const res=await fetch(API_BASE+path,{method:'GET',cache:'no-store'});
-      if(!res.ok)throw new Error(`GET ${path} => ${res.status}`);
-      return res.json();
-    }
-
-    async function apiPost(path){
-      try{
-        const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'}});
-        if(!res.ok) throw new Error('Server error');
-        return res.json();
-      }catch(err){
-        console.warn('Request failed, sending to SW...', err);
-        if(navigator.serviceWorker.controller){
-          navigator.serviceWorker.controller.postMessage({type:'storeFailed', request:{path}});
-          navigator.serviceWorker.ready.then(swReg=>swReg.sync.register('retry-visits'));
-        }
-        alert('Failed request queued. You can safely close the page.');
-      }
-    }
-
-    async function refresh(){setLoading(true);try{updateUI(await apiGet('/'));}catch(e){setStatus('offline',false);console.error(e);} }
-    async function addVisit(){await apiPost('/add');refresh();}
-    async function resetWeek(){if(confirm('Weet je zeker dat je de week reset?')){await apiPost('/reset');refresh();} }
-    function highlightToday(){const idx=(new Date().getUTCDay()+6)%7;const card=document.getElementById('day-'+idx);if(!card)return;const orig=card.style.boxShadow;card.style.boxShadow='0 8px 28px rgba(96,165,250,0.22)';setTimeout(()=>card.style.boxShadow=orig,900);}
-    function toggleAuto(){const btn=document.getElementById('btnAuto');if(autoInterval){clearInterval(autoInterval);autoInterval=null;btn.textContent='Auto-refresh: off';btn.classList.remove('active');}else{autoInterval=setInterval(refresh,10000);btn.textContent='Auto-refresh: on (10s)';btn.classList.add('active');}}
-
-    document.getElementById('btnRefresh').addEventListener('click',refresh);
-    document.getElementById('btnAdd').addEventListener('click',addVisit);
-    document.getElementById('btnReset').addEventListener('click',resetWeek);
-    document.getElementById('btnAuto').addEventListener('click',toggleAuto);
-
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('/analytics/sw.js');
-    }
-
-    (async function init(){
-      try{
-        await fetch(API_BASE+'/ping',{method:'GET',cache:'no-store'}).then(r=>{if(!r.ok)setStatus('offline',false);});
-        refresh();
-      }catch(e){console.error('Init failed',e);setStatus('offline',false);}
-    })();
-  </script>
+document.getElementById('btnAdd').addEventListener('click', addVisit);
+</script>
 </body>
 </html>
