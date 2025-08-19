@@ -1,5 +1,6 @@
 const FAILED_QUEUE = 'failed-visits';
 
+// Install & Activate
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => self.clients.claim());
 
@@ -8,6 +9,7 @@ self.addEventListener('sync', e => {
   if (e.tag === 'retry-visits') e.waitUntil(retryFailedRequests());
 });
 
+// Retry functie
 async function retryFailedRequests() {
   const cache = await caches.open(FAILED_QUEUE);
   const keys = await cache.keys();
@@ -23,7 +25,7 @@ async function retryFailedRequests() {
       });
       if (res.ok) await cache.delete(request);
     } catch (e) {
-      console.log('Retry failed', e);
+      console.log('Retry mislukt', e);
     }
   }
 }
