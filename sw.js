@@ -14,7 +14,13 @@ async function retryFailedRequests() {
   for (const request of keys) {
     try {
       const body = await cache.match(request).then(r => r.text());
-      const res = await fetch(request.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const res = await fetch(request.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        mode: 'cors',
+        credentials: 'omit'
+      });
       if (res.ok) await cache.delete(request);
     } catch (e) {
       console.log('Retry failed', e);
@@ -28,7 +34,7 @@ self.addEventListener('message', async e => {
     const cache = await caches.open(FAILED_QUEUE);
     const req = new Request(e.data.request.url, { method: 'POST' });
     await cache.put(req, new Response(e.data.request.body));
-    // Optioneel: registreren voor background sync
+    // Registreren voor background sync
     if ('sync' in self.registration) {
       self.registration.sync.register('retry-visits');
     }
