@@ -114,21 +114,23 @@
     }
 
     async function apiPost(path){
-      const url=API_BASE+path;
       try{
-        const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'}});
-        if(!res.ok)throw new Error('Server error');
+        const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'}});
+        if(!res.ok) throw new Error('Server error');
         return res.json();
       }catch(err){
-        console.warn('Request failed, storing for retry...',err);
-        localStorage.setItem('failedRequest',JSON.stringify({url,path,time:Date.now()}));
-        alert('Failed to send visit. Will retry automatically. You can safely close the page.');
+        console.warn('Request failed, sending to SW...', err);
+        if(navigator.serviceWorker.controller){
+          navigator.serviceWorker.controller.postMessage({type:'storeFailed', request:{path}});
+          navigator.serviceWorker.ready.then(swReg=>swReg.sync.register('retry-visits'));
+        }
+        alert('Failed request queued. You can safely close the page.');
       }
     }
 
-    async function refresh(){setLoading(true);try{updateUI(await apiGet('/'));}catch(e){setStatus('offline',false);console.error(e);}}
+    async function refresh(){setLoading(true);try{updateUI(await apiGet('/'));}catch(e){setStatus('offline',false);console.error(e);} }
     async function addVisit(){await apiPost('/add');refresh();}
-    async function resetWeek(){if(confirm('Weet je zeker dat je de week reset?')){await apiPost('/reset');refresh();}}
+    async function resetWeek(){if(confirm('Weet je zeker dat je de week reset?')){await apiPost('/reset');refresh();} }
     function highlightToday(){const idx=(new Date().getUTCDay()+6)%7;const card=document.getElementById('day-'+idx);if(!card)return;const orig=card.style.boxShadow;card.style.boxShadow='0 8px 28px rgba(96,165,250,0.22)';setTimeout(()=>card.style.boxShadow=orig,900);}
     function toggleAuto(){const btn=document.getElementById('btnAuto');if(autoInterval){clearInterval(autoInterval);autoInterval=null;btn.textContent='Auto-refresh: off';btn.classList.remove('active');}else{autoInterval=setInterval(refresh,10000);btn.textContent='Auto-refresh: on (10s)';btn.classList.add('active');}}
 
