@@ -1,68 +1,36 @@
-const DB_NAME = 'rCountDB';
-const STORE_NAME = 'failed-visits';
+const FAILED_QUEUE = 'failed-visits';
 
-// IndexedDB helpers
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = e => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, {keyPath:'id', autoIncrement:true});
-    };
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = e => reject(e.target.error);
-  });
-}
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => self.clients.claim());
 
-function saveFailed(request) {
-  return openDB().then(db => {
-    const tx = db.transaction(STORE_NAME,'readwrite');
-    tx.objectStore(STORE_NAME).add({...request,time:Date.now()});
-    return tx.complete;
-  });
-}
-
-function getAllFailed() {
-  return openDB().then(db => new Promise((resolve,reject)=>{
-    const tx = db.transaction(STORE_NAME,'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const all = store.getAll();
-    all.onsuccess = ()=>resolve(all.result);
-    all.onerror = e=>reject(e);
-  }));
-}
-
-function deleteFailed(id){
-  return openDB().then(db=>{
-    const tx=db.transaction(STORE_NAME,'readwrite');
-    tx.objectStore(STORE_NAME).delete(id);
-    return tx.complete;
-  });
-}
-
-// SW lifecycle
-self.addEventListener('install', e=>self.skipWaiting());
-self.addEventListener('activate', e=>self.clients.claim());
-
-// Background sync
+// Achtergrond sync
 self.addEventListener('sync', e => {
-  if(e.tag==='retry-visits') e.waitUntil(retryFailedRequests());
+  if (e.tag === 'retry-visits') e.waitUntil(retryFailedRequests());
 });
 
-async function retryFailedRequests(){
-  const failed = await getAllFailed();
-  for(const req of failed){
-    if(Date.now()-req.time > 60000){ await deleteFailed(req.id); continue;} // >1min
-    try{
-      const res = await fetch('https://rcount.onrender.com'+req.path, {method:'POST', headers:{'Content-Type':'application/json'}});
-      if(res.ok) await deleteFailed(req.id);
-    } catch(e){console.log('Retry failed',e);}
+async function retryFailedRequests() {
+  const cache = await caches.open(FAILED_QUEUE);
+  const keys = await cache.keys();
+  for (const request of keys) {
+    try {
+      const body = await cache.match(request).then(r => r.text());
+      const res = await fetch(request.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (res.ok) await cache.delete(request);
+    } catch (e) {
+      console.log('Retry failed', e);
+    }
   }
 }
 
-// Receive failed request from page
-self.addEventListener('message', e=>{
-  if(e.data?.type==='storeFailed'){
-    saveFailed(e.data.request);
+// Message listener van pagina
+self.addEventListener('message', async e => {
+  if (e.data?.type === 'storeFailed') {
+    const cache = await caches.open(FAILED_QUEUE);
+    const req = new Request(e.data.request.url, { method: 'POST' });
+    await cache.put(req, new Response(e.data.request.body));
+    // Optioneel: registreren voor background sync
+    if ('sync' in self.registration) {
+      self.registration.sync.register('retry-visits');
+    }
   }
 });
