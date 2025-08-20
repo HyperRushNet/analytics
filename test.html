@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Echte bezoek teller</title>
+<style>
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 50px;
+  }
+  #status {
+    margin-top: 20px;
+    font-size: 1.2rem;
+    color: green;
+  }
+</style>
+</head>
+<body>
+<h1>Echte bezoek teller</h1>
+<div id="status">Laden...</div>
+
+<script>
+function addVisit() {
+  // Hier komt normaal een request naar server, nu simulatie
+  document.getElementById('status').textContent = "✅ Echte bezoeker geteld!";
+  console.log("Echte bezoeker geteld!");
+}
+
+window.addEventListener('load', () => {
+  const navEntries = performance.getEntriesByType("navigation");
+  const navType = navEntries.length > 0 ? navEntries[0].type : "navigate";
+
+  // Alleen +1 bij echte navigatie en niet bij refresh/back-forward
+  if (navType === "navigate" && !sessionStorage.getItem('visited')) {
+    addVisit();
+    sessionStorage.setItem('visited', 'true');
+  } else {
+    document.getElementById('status').textContent = "Geen nieuwe navigatie (refresh/back).";
+  }
+});
+</script>
+</body>
+</html>
