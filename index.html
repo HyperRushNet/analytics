@@ -31,21 +31,50 @@
 <div id="timing"></div>
 
 <script>
-// Simulatie van de bibliotheek hrn.counter
-// In jouw echte omgeving vervang je dit met de echte lib
-window.hrn = window.hrn || {};
-hrn.counter = {
-  add: function() {
-    document.getElementById('status').textContent = "✅ hrn.counter.add() uitgevoerd!";
-    console.log("hrn.counter.add() uitgevoerd!");
-  }
-};
+const API_BASE = "https://rcount.onrender.com";
 
 // Timing UI update
 function updateTiming(msg) {
   const div = document.getElementById('timing');
   div.textContent += msg + "\n";
 }
+
+// Bibliotheek hrn.counter
+window.hrn = window.hrn || {};
+hrn.counter = {
+  add: function() {
+    const url = API_BASE + '/add';
+    const payload = JSON.stringify({ time: Date.now() });
+    const requestStart = performance.now();
+
+    // Beacon sturen
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'text/plain' });
+      const sent = navigator.sendBeacon(url, blob);
+      const requestEnd = performance.now();
+      if (sent) {
+        document.getElementById('status').textContent = "✅ Beacon succesvol verzonden!";
+        updateTiming(`Beacon request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
+        return;
+      }
+    }
+
+    // Fallback naar SW retry
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'storeFailed',
+        request: { url, body: payload }
+      });
+      const requestEnd = performance.now();
+      document.getElementById('status').textContent = "✅ Verzoek opgeslagen voor retry via SW";
+      updateTiming(`SW fallback request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
+    } else {
+      const requestEnd = performance.now();
+      document.getElementById('status').textContent = "❌ Geen SW actief, probeer opnieuw!";
+      updateTiming(`Request mislukte, duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
+    }
+  }
+};
 
 // Service Worker registreren met timing
 if ('serviceWorker' in navigator) {
@@ -55,7 +84,6 @@ if ('serviceWorker' in navigator) {
       const swRegistered = performance.now();
       updateTiming(`Service Worker registratie duurde ${(swRegistered - swStart).toFixed(2)} ms`);
 
-      // Wachten tot SW klaar is
       navigator.serviceWorker.ready.then(() => {
         const swReady = performance.now();
         updateTiming(`Service Worker is actief en klaar in ${(swReady - swStart).toFixed(2)} ms`);
