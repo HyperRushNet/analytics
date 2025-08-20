@@ -1,8 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<title>rCount Dashboard</title>
+<title>rCount Dashboard met hrn.counter</title>
 <style>
   body {
     font-family: sans-serif;
@@ -31,46 +31,20 @@
 <div id="timing"></div>
 
 <script>
-const API_BASE = "https://rcount.onrender.com";
+// Simulatie van de bibliotheek hrn.counter
+// In jouw echte omgeving vervang je dit met de echte lib
+window.hrn = window.hrn || {};
+hrn.counter = {
+  add: function() {
+    document.getElementById('status').textContent = "✅ hrn.counter.add() uitgevoerd!";
+    console.log("hrn.counter.add() uitgevoerd!");
+  }
+};
 
 // Timing UI update
 function updateTiming(msg) {
   const div = document.getElementById('timing');
   div.textContent += msg + "\n";
-}
-
-// Functie om request te versturen via beacon en SW met timing
-function addVisit() {
-  const url = API_BASE + '/add';
-  const payload = JSON.stringify({ time: Date.now() });
-  const requestStart = performance.now();
-
-  if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: 'text/plain' });
-    const sent = navigator.sendBeacon(url, blob);
-    const requestEnd = performance.now();
-
-    if (sent) {
-      document.getElementById('status').textContent = "Beacon succesvol verzonden!";
-      updateTiming(`Beacon request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
-      return;
-    }
-  }
-
-  // Fallback naar SW retry
-  if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'storeFailed',
-      request: { url, body: payload }
-    });
-    const requestEnd = performance.now();
-    document.getElementById('status').textContent = "Verzoek opgeslagen voor retry via SW";
-    updateTiming(`SW fallback request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
-  } else {
-    const requestEnd = performance.now();
-    document.getElementById('status').textContent = "Geen SW actief, probeer opnieuw!";
-    updateTiming(`Request mislukte, duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
-  }
 }
 
 // Service Worker registreren met timing
@@ -86,8 +60,8 @@ if ('serviceWorker' in navigator) {
         const swReady = performance.now();
         updateTiming(`Service Worker is actief en klaar in ${(swReady - swStart).toFixed(2)} ms`);
 
-        // Automatisch +1 addVisit zodra alles klaar is
-        addVisit();
+        // Automatisch +1 via hrn.counter.add()
+        hrn.counter.add();
       });
     })
     .catch(e => {
@@ -96,8 +70,10 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Button listener (voor handmatig toevoegen)
-document.getElementById('btnAdd').addEventListener('click', addVisit);
+// Button listener voor handmatig +1
+document.getElementById('btnAdd').addEventListener('click', () => {
+  hrn.counter.add();
+});
 </script>
 </body>
 </html>
