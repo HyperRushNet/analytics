@@ -39,26 +39,6 @@ function updateTiming(msg) {
   div.textContent += msg + "\n";
 }
 
-// Service Worker registreren met timing
-if ('serviceWorker' in navigator) {
-  const swStart = performance.now();
-  navigator.serviceWorker.register('./sw.js')
-    .then(reg => {
-      const swRegistered = performance.now();
-      updateTiming(`Service Worker registratie duurde ${(swRegistered - swStart).toFixed(2)} ms`);
-
-      // Wachten tot SW klaar is
-      navigator.serviceWorker.ready.then(() => {
-        const swReady = performance.now();
-        updateTiming(`Service Worker is actief en klaar in ${(swReady - swStart).toFixed(2)} ms`);
-      });
-    })
-    .catch(e => {
-      console.error("SW registratie mislukt:", e);
-      updateTiming("SW registratie mislukt: " + e);
-    });
-}
-
 // Functie om request te versturen via beacon en SW met timing
 function addVisit() {
   const url = API_BASE + '/add';
@@ -93,6 +73,30 @@ function addVisit() {
   }
 }
 
+// Service Worker registreren met timing
+if ('serviceWorker' in navigator) {
+  const swStart = performance.now();
+  navigator.serviceWorker.register('./sw.js')
+    .then(reg => {
+      const swRegistered = performance.now();
+      updateTiming(`Service Worker registratie duurde ${(swRegistered - swStart).toFixed(2)} ms`);
+
+      // Wachten tot SW klaar is
+      navigator.serviceWorker.ready.then(() => {
+        const swReady = performance.now();
+        updateTiming(`Service Worker is actief en klaar in ${(swReady - swStart).toFixed(2)} ms`);
+
+        // Automatisch +1 addVisit zodra alles klaar is
+        addVisit();
+      });
+    })
+    .catch(e => {
+      console.error("SW registratie mislukt:", e);
+      updateTiming("SW registratie mislukt: " + e);
+    });
+}
+
+// Button listener (voor handmatig toevoegen)
 document.getElementById('btnAdd').addEventListener('click', addVisit);
 </script>
 </body>
