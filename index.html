@@ -41,7 +41,7 @@ function updateTiming(msg) {
 // Service Worker registreren met timing
 if ('serviceWorker' in navigator) {
   const swStart = performance.now();
-  navigator.serviceWorker.register('/sw.js')
+  navigator.serviceWorker.register('./sw.js')
     .then(() => {
       const swEnd = performance.now();
       console.log("SW geregistreerd");
