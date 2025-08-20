@@ -16,7 +16,7 @@
     font-size: 1.2rem;
     cursor: pointer;
   }
-  #status {
+  #status, #timing {
     margin-top: 20px;
     font-size: 1rem;
     color: green;
@@ -27,28 +27,47 @@
 <h1>rCount Dashboard</h1>
 <button id="btnAdd">Add visit</button>
 <div id="status"></div>
+<div id="timing"></div>
 
 <script>
 const API_BASE = "https://rcount.onrender.com";
 
-// Service Worker registreren
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js')
-    .then(() => console.log("SW geregistreerd"))
-    .catch(e => console.error("SW registratie mislukt:", e));
+// Timing UI update
+function updateTiming(msg) {
+  const div = document.getElementById('timing');
+  div.textContent += msg + "\n";
 }
 
-// Functie om request te versturen via beacon en SW
+// Service Worker registreren met timing
+if ('serviceWorker' in navigator) {
+  const swStart = performance.now();
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => {
+      const swEnd = performance.now();
+      console.log("SW geregistreerd");
+      updateTiming(`Service Worker registratie duurde ${(swEnd - swStart).toFixed(2)} ms`);
+    })
+    .catch(e => {
+      console.error("SW registratie mislukt:", e);
+      updateTiming("SW registratie mislukt: " + e);
+    });
+}
+
+// Functie om request te versturen via beacon en SW met timing
 function addVisit() {
   const url = API_BASE + '/add';
   const payload = JSON.stringify({ time: Date.now() });
+  const requestStart = performance.now();
 
   // Beacon sturen
   if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: 'text/plain' }); // text/plain voorkomt preflight
+    const blob = new Blob([payload], { type: 'text/plain' });
     const sent = navigator.sendBeacon(url, blob);
+    const requestEnd = performance.now();
+
     if (sent) {
       document.getElementById('status').textContent = "Beacon succesvol verzonden!";
+      updateTiming(`Beacon request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
       return;
     }
   }
@@ -59,9 +78,13 @@ function addVisit() {
       type: 'storeFailed',
       request: { url, body: payload }
     });
+    const requestEnd = performance.now();
     document.getElementById('status').textContent = "Verzoek opgeslagen voor retry via SW";
+    updateTiming(`SW fallback request duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
   } else {
+    const requestEnd = performance.now();
     document.getElementById('status').textContent = "Geen SW actief, probeer opnieuw!";
+    updateTiming(`Request mislukte, duurde ${(requestEnd - requestStart).toFixed(2)} ms`);
   }
 }
 
