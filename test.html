@@ -1,45 +1,48 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Echte bezoek teller</title>
-<style>
-  body {
-    font-family: sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 50px;
-  }
-  #status {
-    margin-top: 20px;
-    font-size: 1.2rem;
-    color: green;
-  }
-</style>
+<meta charset="UTF-8">
+<title>Send 1-Byte Adds</title>
 </head>
 <body>
-<h1>Echte bezoek teller</h1>
-<div id="status">Laden...</div>
+<h1>1-Byte Add Sender</h1>
+<button id="sendBtn">Send 1-Byte</button>
+<p id="status">Not connected</p>
 
 <script>
-function addVisit() {
-  // Hier komt normaal een request naar server, nu simulatie
-  document.getElementById('status').textContent = "✅ Echte bezoeker geteld!";
-  console.log("Echte bezoeker geteld!");
+const url = "wss://rcount.onrender.com/ws";
+let ws;
+
+function connect() {
+    ws = new WebSocket(url);
+
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+        document.getElementById("status").innerText = "Connected";
+    };
+
+    ws.onclose = () => {
+        document.getElementById("status").innerText = "Disconnected, retrying in 2s...";
+        setTimeout(connect, 2000);
+    };
+
+    ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        ws.close();
+    };
 }
 
-window.addEventListener('load', () => {
-  const navEntries = performance.getEntriesByType("navigation");
-  const navType = navEntries.length > 0 ? navEntries[0].type : "navigate";
+connect();
 
-  // Alleen +1 bij echte navigatie en niet bij refresh/back-forward
-  if (navType === "navigate" && !sessionStorage.getItem('visited')) {
-    addVisit();
-    sessionStorage.setItem('visited', 'true');
-  } else {
-    document.getElementById('status').textContent = "Geen nieuwe navigatie (refresh/back).";
-  }
+document.getElementById("sendBtn").addEventListener("click", () => {
+    if (ws.readyState === WebSocket.OPEN) {
+        const buffer = new Uint8Array(1); // 1-byte message
+        buffer[0] = 1;
+        ws.send(buffer);
+    } else {
+        console.warn("WebSocket not open");
+    }
 });
 </script>
 </body>
